@@ -1,14 +1,8 @@
-# %% [markdown]
-# ## Set Up Environment
-# 
-
-# %%
 from dotenv import load_dotenv
 import os
 
 # Load .env file
 load_dotenv()
-
 
 # Access environment variables
 speech_key = os.getenv('SPEECH_KEY')
@@ -27,17 +21,11 @@ print(f'REGION: {gpt_region}')
 
 llama_token = os.getenv('LLAMA_TOKEN')
 print(f'LLAMA_TOKEN: {llama_token}')
-	
-
-# %% [markdown]
-# ## Speech-To-Text Azure
 
 # %%
 import azure.cognitiveservices.speech as speechsdk
 speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
 
-# %% [markdown]
-# ### Dual Audio Detection Code
 
 # %%
 import sounddevice as sd
@@ -88,11 +76,6 @@ class DualAudioStream:
             wf.writeframes(audio_data)
         print(f"Audio saved to {file_name}.")
 
-
-# %% [markdown]
-# ### Speech Recognition
-
-# %%
 def recognize_speech():
     # This example requires environment variables named "SPEECH_KEY" and "SPEECH_REGION"
     
@@ -171,11 +154,6 @@ def detect_sr(src: str) -> int:
     
     return final_syl_sec
 
-# %% [markdown]
-# ## Language Model
-
-# %% [markdown]
-# ### OpenAI GPT
 
 # %%
 def generate_response(prompt):
@@ -189,39 +167,32 @@ def generate_response(prompt):
     )
     return response.choices[0].message["content"]
 
-# %% [markdown]
-# ### LLama (test)
+# # %% [markdown]
+# # ### LLama (test)
 
-# %%
-import subprocess
-
-
-# Run the huggingface-cli login command
-subprocess.run(["huggingface-cli", "login", "--token", llama_token])
+# # %%
+# import subprocess
 
 
-# %%
-!huggingface-cli download meta-llama/Meta-Llama-3-8B-Instruct --include "original/*" --local-dir Meta-Llama-3-8B-Instruct
-
-# %%
-import transformers
-import torch
-
-model_id = "meta-llama/Llama-3.1-8B"
-
-pipeline = transformers.pipeline(
-    "text-generation", model=model_id, model_kwargs={"torch_dtype": torch.bfloat16}, device_map="auto", use_auth_token=True
-)
+# # Run the huggingface-cli login command
+# subprocess.run(["huggingface-cli", "login", "--token", llama_token])
 
 
-# %%
+# # %%
+# !huggingface-cli download meta-llama/Meta-Llama-3-8B-Instruct --include "original/*" --local-dir Meta-Llama-3-8B-Instruct
 
-pipeline("Hey how are you doing today?")
+# # %%
+# import transformers
+# import torch
 
-# %% [markdown]
-# ## Text-to-Speech
+# model_id = "meta-llama/Llama-3.1-8B"
 
-# %%
+# pipeline = transformers.pipeline(
+#     "text-generation", model=model_id, model_kwargs={"torch_dtype": torch.bfloat16}, device_map="auto", use_auth_token=True
+# )
+
+# pipeline("Hey how are you doing today?")
+
 def speak_response(response):
 	"""Convert text to speech using Azure Speech SDK."""
 	speech_config.speech_synthesis_language="fr-FR"
@@ -251,10 +222,8 @@ def speak_response(response):
 	# synthesizer.speak_text_async(response)
 
 
-# %%
 speak_response("Moi? Je vais bien, merci!")
 
-# %%
 def main():
     """Main voice agent loop."""
     user_input = recognize_speech()
