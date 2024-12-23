@@ -182,16 +182,16 @@ def detect_sr(src: str) -> int:
 # ### OpenAI GPT
 
 # %%
-def generate_response(prompt):
-    """Generate a response using Azure OpenAI Service."""
-    response = openai_client.chat_completions.create(
-        deployment_id=deployment_id,
-        messages=[
-            {"role": "system", "content": "You are a helpful AI assistant."},
-            {"role": "user", "content": prompt},
-        ],
-    )
-    return response.choices[0].message["content"]
+# def generate_response(prompt):
+#     """Generate a response using Azure OpenAI Service."""
+#     response = openai_client.chat_completions.create(
+#         deployment_id=deployment_id,
+#         messages=[
+#             {"role": "system", "content": "You are a helpful AI assistant."},
+#             {"role": "user", "content": prompt},
+#         ],
+#     )
+#     return response.choices[0].message["content"]
 
 # %% [markdown]
 # ### LLama (test)
@@ -205,17 +205,17 @@ subprocess.run(["huggingface-cli", "login", "--token", llama_token])
 
 
 # %%
-!huggingface-cli download meta-llama/Meta-Llama-3-8B-Instruct --include "original/*" --local-dir Meta-Llama-3-8B-Instruct
+# !huggingface-cli download meta-llama/Meta-Llama-3-8B-Instruct --include "original/*" --local-dir Meta-Llama-3-8B-Instruct
 
 # %%
-import transformers
-import torch
+# import transformers
+# import torch
 
-model_id = "meta-llama/Llama-3.1-8B"
+# model_id = "meta-llama/Llama-3.1-8B"
 
-pipeline = transformers.pipeline(
-    "text-generation", model=model_id, model_kwargs={"torch_dtype": torch.bfloat16}, device_map="auto", use_auth_token=True
-)
+# pipeline = transformers.pipeline(
+#     "text-generation", model=model_id, model_kwargs={"torch_dtype": torch.bfloat16}, device_map="auto", use_auth_token=True
+# )
 
 
 # %%
