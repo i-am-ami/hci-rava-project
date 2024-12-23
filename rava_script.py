@@ -155,17 +155,17 @@ def detect_sr(src: str) -> int:
     return final_syl_sec
 
 
-# %%
-def generate_response(prompt):
-    """Generate a response using Azure OpenAI Service."""
-    response = openai_client.chat_completions.create(
-        deployment_id=deployment_id,
-        messages=[
-            {"role": "system", "content": "You are a helpful AI assistant."},
-            {"role": "user", "content": prompt},
-        ],
-    )
-    return response.choices[0].message["content"]
+# # %%
+# def generate_response(prompt):
+#     """Generate a response using Azure OpenAI Service."""
+#     response = openai_client.chat_completions.create(
+#         deployment_id=deployment_id,
+#         messages=[
+#             {"role": "system", "content": "You are a helpful AI assistant."},
+#             {"role": "user", "content": prompt},
+#         ],
+#     )
+#     return response.choices[0].message["content"]
 
 # # %% [markdown]
 # # ### LLama (test)

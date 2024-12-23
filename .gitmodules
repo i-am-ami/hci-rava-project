@@ -1,0 +1,3 @@
+[submodule "myprosody"]
+	path = myprosody
+	url = https://github.com/Shahabks/myprosody.git
