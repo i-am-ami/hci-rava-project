@@ -181,7 +181,7 @@ def detect_sr(src: str) -> int:
 # %% [markdown]
 # ### OpenAI GPT
 
-# %%
+# # %%
 # def generate_response(prompt):
 #     """Generate a response using Azure OpenAI Service."""
 #     response = openai_client.chat_completions.create(
@@ -193,21 +193,21 @@ def detect_sr(src: str) -> int:
 #     )
 #     return response.choices[0].message["content"]
 
-# %% [markdown]
-# ### LLama (test)
+# # %% [markdown]
+# # ### LLama (test)
 
-# %%
-import subprocess
-
-
-# Run the huggingface-cli login command
-subprocess.run(["huggingface-cli", "login", "--token", llama_token])
+# # %%
+# import subprocess
 
 
-# %%
+# # Run the huggingface-cli login command
+# subprocess.run(["huggingface-cli", "login", "--token", llama_token])
+
+
+# # %%
 # !huggingface-cli download meta-llama/Meta-Llama-3-8B-Instruct --include "original/*" --local-dir Meta-Llama-3-8B-Instruct
 
-# %%
+# # %%
 # import transformers
 # import torch
 
@@ -220,7 +220,7 @@ subprocess.run(["huggingface-cli", "login", "--token", llama_token])
 
 # %%
 
-pipeline("Hey how are you doing today?")
+# pipeline("Hey how are you doing today?")
 
 # %% [markdown]
 # ## Text-to-Speech
