@@ -256,27 +256,15 @@ def speak_response(response):
 
 
 # %%
-speak_response("Moi? Je vais bien, merci!")
+# speak_response("Moi? Je vais bien, merci!")
 
 # %%
-def main():
-    convo_history ={"User Information":[], "Agent Information":[]}
 
-    """Main voice agent loop."""
-    user_input = recognize_speech(convo_history)
-    return convo_history
-        # if user_input:
-        #     # Generate a response using Azure OpenAI Service
-        #     response = generate_response(user_input)
-        #     print(f"Agent: {response}")
-        #     # Speak the response
-        #     speak_response(response)
-        # else:
-        #     print("Could not understand input. Please try again.")
+
 
 
 # %%
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
 
 
