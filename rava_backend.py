@@ -135,9 +135,69 @@ def recognize_speech(convo_history):
         dual_audio.stop_recording()
         if len(dual_audio.frames) > 0 and speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
               dual_audio.save_to_wav("output.wav")
-			
+
+        # Current audio file is stuck at 16-bit, 256kbps, which is not enough for myprosody to be used.
+        # So let's upscale the audio 
+        upscale_wav("output.wav", "output_upscaled.wav", target_sample_rate=32000)
+        
+        copy_file('./myprosody/myprosody/dataset/audioFiles/', 'output.wav')
+        user_sr = detect_sr('output')
+
+        print("User speech rate in syl/sec :: ", user_sr)
+
         print("Finished.")
     return None
+
+# %% [markdown]
+# ## Misc. functions
+# 
+# There is some compatibility issues we needed to work around to get Myprosody to work, so here are some methods 
+# to handle the audio files.
+# 
+# %%  
+# Code to copy the files, since myprosody doesn't take file paths.
+import shutil
+import os
+def delete_file(file_path):
+    try:
+        os.remove(file_path)
+        print(f"File {file_path} deleted successfully.")
+    except FileNotFoundError:
+        print(f"File {file_path} not found.")
+    except PermissionError:
+        print(f"Permission denied: {file_path}.")
+    except Exception as e:
+        print(f"Error occurred while deleting file {file_path}: {e}")
+
+def copy_file (dst: str, src: str) :
+    try:
+        shutil.copy(src, dst)  # Preserves metadata like timestamps
+        print(f"File copied successfully from {src} to {dst}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# %%  
+# Code to upscale Microsoft's 16-bit 256kbps audio quality to 24-bit, 32khz audio to meet myprosody's requirements.      
+
+from pydub import AudioSegment
+import numpy as np
+from scipy.signal import resample_poly
+
+def upscale_wav(input_file, output_file, target_sample_rate=44100, target_bit_depth=24):
+    # Load the .wav file
+    audio = AudioSegment.from_wav(input_file)
+    
+    # Resample to target sample rate (32 kHz)
+    original_sample_rate = audio.frame_rate
+    audio_resampled = audio.set_frame_rate(target_sample_rate)
+    
+    # Convert to 24-bit by adjusting the sample width
+    if target_bit_depth == 24:
+        audio_resampled = audio_resampled.set_sample_width(3)  # 24-bit = 3 bytes per sample
+
+    # Export the processed file
+    audio_resampled.export(output_file, format="wav")
+
 
 # %% [markdown]
 # ## MyProsody Speech Rate Detection
