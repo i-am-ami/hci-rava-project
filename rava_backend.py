@@ -140,8 +140,8 @@ def recognize_speech(convo_history):
         # So let's upscale the audio 
         upscale_wav("output.wav", "output_upscaled.wav", target_sample_rate=32000)
         
-        copy_file('./myprosody/myprosody/dataset/audioFiles/', 'output.wav')
-        user_sr = detect_sr('output')
+        copy_file('./myprosody/myprosody/dataset/audioFiles/', 'output_upscaled.wav')
+        user_sr = detect_sr('output_upscaled')
 
         print("User speech rate in syl/sec :: ", user_sr)
 
