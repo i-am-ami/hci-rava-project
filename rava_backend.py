@@ -55,7 +55,8 @@ def record_audio(stop_event, data_queue, pai_stream):
         # Save audio frames for WAV file
         # Write audio to PushAudioInputStream (required by Azure SDK)
         data_queue.put(bytes(indata))
-        pai_stream.write(bytes(indata))
+        print(type(indata))
+        pai_stream.write(indata.tobytes())
 
     with sd.RawInputStream(samplerate=44100, dtype="int32", channels=1, callback=callback):
         while not stop_event.is_set():
@@ -88,55 +89,57 @@ def recognize_speech(convo_history):
     )
 
     
-    # Start recording audio from the microphone
-    recording_thread.start()
+    try:
+        # Start recording audio from the microphone
+        recording_thread.start()
 
-    # Configure Azure SpeechRecognizer with PushAudioInputStream
-    audio_config = speechsdk.audio.AudioConfig(stream=audio_stream)
-    recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+        # Configure Azure SpeechRecognizer with PushAudioInputStream
+        audio_config = speechsdk.audio.AudioConfig(stream=audio_stream)
+        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    # Start recognition
-    print("Speak into your microphone...")
-    speech_recognition_result = recognizer.recognize_once_async().get()
+        # Start recognition
+        print("Speak into your microphone...")
+        speech_recognition_result = recognizer.recognize_once_async().get()
 
-    # Stop audio recording, recognizer will have automatically stopped beforehand.
-    stop_event.set()
-    recording_thread.join()
+        # Stop audio recording, recognizer will have automatically stopped beforehand.
+        stop_event.set()
+        recording_thread.join()
 
-    # Handle recognition result
-    if speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
-        print("You: {}".format(speech_recognition_result.text))
-        print("Recognized: {}".format(speech_recognition_result.duration))
-        speaker_profile = {"Speaker": "This User", "Duration": speech_recognition_result.duration, "Speaking Rate": speech_recognition_result.duration/len(speech_recognition_result.text)}
-        convo_history["User Information"] += [{"Speaker Profile": speaker_profile, "Speaker Input": speech_recognition_result.text}]
-        return speech_recognition_result.text
-    elif speech_recognition_result.reason == speechsdk.ResultReason.NoMatch:
-        print("No speech could be recognized: {}".format(speech_recognition_result.no_match_details))
-    elif speech_recognition_result.reason == speechsdk.ResultReason.Canceled:
-        cancellation_details = speech_recognition_result.cancellation_details
-        print("Speech Recognition canceled: {}".format(cancellation_details.reason))
-        if cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print("Error details: {}".format(cancellation_details.error_details))
-            print("Did you set the speech resource key and region values?")
+        # Handle recognition result
+        if speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
+            print("You: {}".format(speech_recognition_result.text))
+            print("Recognized: {}".format(speech_recognition_result.duration))
+            speaker_profile = {"Speaker": "This User", "Duration": speech_recognition_result.duration, "Speaking Rate": speech_recognition_result.duration/len(speech_recognition_result.text)}
+            convo_history["User Information"] += [{"Speaker Profile": speaker_profile, "Speaker Input": speech_recognition_result.text}]
+            return speech_recognition_result.text
+        elif speech_recognition_result.reason == speechsdk.ResultReason.NoMatch:
+            print("No speech could be recognized: {}".format(speech_recognition_result.no_match_details))
+        elif speech_recognition_result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = speech_recognition_result.cancellation_details
+            print("Speech Recognition canceled: {}".format(cancellation_details.reason))
+            if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                print("Error details: {}".format(cancellation_details.error_details))
+                print("Did you set the speech resource key and region values?")
+    finally:
+        stop_event.set()
+        recording_thread.join()
+        audio_data = b"".join(list(data_queue.queue))
+        audio_np = (np.frombuffer(audio_data, dtype=np.int32))
 
-    audio_data = b"".join(list(data_queue.queue))
-    audio_np = (np.frombuffer(audio_data, dtype=np.int32))
+        if len(audio_np) > 0 and speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
+            wavfile.write("output.wav", 44100, audio_np)
 
-    if len(audio_np) > 0 and speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
-        wavfile.write("output.wav", 44100, audio_np)
+        # # Current audio file is stuck at 16-bit, 256kbps, which is not enough for myprosody to be used.
+        # # So let's upscale the audio 
+        # upscale_wav("output.wav", "output_upscaled.wav", target_sample_rate=32000)
+        
+        # copy_file('./myprosody/myprosody/dataset/audioFiles/', 'output_upscaled.wav')
+        # user_sr = detect_sr('output_upscaled')
+        
+        # user_sr = detect_sr('output')
+        # print("User speech rate in syl/sec :: ", user_sr)
 
-    # # Current audio file is stuck at 16-bit, 256kbps, which is not enough for myprosody to be used.
-    # # So let's upscale the audio 
-    # upscale_wav("output.wav", "output_upscaled.wav", target_sample_rate=32000)
-    
-    # copy_file('./myprosody/myprosody/dataset/audioFiles/', 'output_upscaled.wav')
-    # user_sr = detect_sr('output_upscaled')
-    
-    # user_sr = detect_sr('output')
-    # print("User speech rate in syl/sec :: ", user_sr)
-
-    print("Finished.")
-    
+        print("Finished.")
     return None
 
 # %% [markdown]
