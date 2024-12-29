@@ -55,8 +55,11 @@ def record_audio(stop_event, data_queue, pai_stream):
         # Save audio frames for WAV file
         # Write audio to PushAudioInputStream (required by Azure SDK)
         data_queue.put(bytes(indata))
-        print(type(indata))
-        pai_stream.write(indata.tobytes())
+        
+        # TODO: For some reason, using a numpy array .tobytes works just fine, but casting the raw buffer to bytes isn't
+        # pai_stream.write(bytes(indata))
+        audio_data = np.frombuffer(indata, dtype=np.int32).tobytes()
+        pai_stream.write(audio_data)
 
     with sd.RawInputStream(samplerate=44100, dtype="int32", channels=1, callback=callback):
         while not stop_event.is_set():
