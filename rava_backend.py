@@ -41,58 +41,34 @@ speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_re
 
 # %%
 import sounddevice as sd
-import wave
 import azure.cognitiveservices.speech as speechsdk
+import time
+import numpy as np
+def record_audio(stop_event, data_queue, pai_stream):
+    """Start streaming audio from the microphone."""
+    print("Recording audio...")
 
-class DualAudioStream:
-    def __init__(self, rate=16000, chunk=1024):
-        self.rate = rate
-        self.chunk = chunk
-        self.frames = []
-        self.push_audio_input_stream = speechsdk.audio.PushAudioInputStream()
-
-    def callback(self, indata, frames, time, status):
+    def callback(indata, frames, time, status):
         """Sounddevice audio callback to capture and push audio data."""
         if status:
             print(f"Sounddevice input status: {status}")
         # Save audio frames for WAV file
-        self.frames.append(indata.copy())
         # Write audio to PushAudioInputStream (required by Azure SDK)
-        self.push_audio_input_stream.write(indata.tobytes())
+        data_queue.put(bytes(indata))
+        pai_stream.write(bytes(indata))
 
-    def start_recording(self):
-        """Start streaming audio from the microphone."""
-        print("Recording audio...")
-        self.stream = sd.InputStream(
-            samplerate=self.rate,
-            channels=1,
-            dtype='int16',
-            blocksize=self.chunk,
-            callback=self.callback,
-        )
-        self.stream.start()
-
-    def stop_recording(self):
-        """Stop streaming audio and close resources."""
-        self.stream.stop()
-        self.stream.close()
-        print("Audio streaming stopped.")
-
-    def save_to_wav(self, file_name):
-        """Save recorded audio to a WAV file."""
-        audio_data = b"".join(frame.tobytes() for frame in self.frames)
-        with wave.open(file_name, "wb") as wf:
-            wf.setnchannels(1)  # Mono audio
-            wf.setsampwidth(2)  # 16-bit audio
-            wf.setframerate(self.rate)
-            wf.writeframes(audio_data)
-        print(f"Audio saved to {file_name}.")
+    with sd.RawInputStream(samplerate=44100, dtype="int32", channels=1, callback=callback):
+        while not stop_event.is_set():
+            time.sleep(0.1)
 
 
 # %% [markdown]
 # ### Speech Recognition
 
 # %%
+from scipy.io import wavfile
+from queue import Queue
+import threading
 def recognize_speech(convo_history):
     # This example requires environment variables named "SPEECH_KEY" and "SPEECH_REGION"
     
@@ -101,51 +77,66 @@ def recognize_speech(convo_history):
     audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
     speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    # Create an instance of the DualAudioStream
-    dual_audio = DualAudioStream()
+    # Create instances of the necessary audio stream (as per AzureSDK reqs) and recording thread variables.
 
-    try:
-        # Start recording audio from the microphone
-        dual_audio.start_recording()
+    audio_stream = speechsdk.audio.PushAudioInputStream()
+    data_queue = Queue()  # type: ignore[var-annotated]
+    stop_event = threading.Event()
+    recording_thread = threading.Thread(
+        target=record_audio,
+        args=(stop_event, data_queue, audio_stream),
+    )
 
-        # Configure Azure SpeechRecognizer with PushAudioInputStream
-        audio_config = speechsdk.audio.AudioConfig(stream=dual_audio.push_audio_input_stream)
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    
+    # Start recording audio from the microphone
+    recording_thread.start()
 
-        # Start recognition
-        print("Speak into your microphone...")
-        speech_recognition_result = recognizer.recognize_once_async().get()
-        dual_audio.stop_recording()
-        # Handle recognition result
-        if speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            print("You: {}".format(speech_recognition_result.text))
-            print("Recognized: {}".format(speech_recognition_result.duration))
-            speaker_profile = {"Speaker": "This User", "Duration": speech_recognition_result.duration, "Speaking Rate": speech_recognition_result.duration/len(speech_recognition_result.text)}
-            convo_history["User Information"] += [{"Speaker Profile": speaker_profile, "Speaker Input": speech_recognition_result.text}]
-            return speech_recognition_result.text
-        elif speech_recognition_result.reason == speechsdk.ResultReason.NoMatch:
-            print("No speech could be recognized: {}".format(speech_recognition_result.no_match_details))
-        elif speech_recognition_result.reason == speechsdk.ResultReason.Canceled:
-            cancellation_details = speech_recognition_result.cancellation_details
-            print("Speech Recognition canceled: {}".format(cancellation_details.reason))
-            if cancellation_details.reason == speechsdk.CancellationReason.Error:
-                print("Error details: {}".format(cancellation_details.error_details))
-                print("Did you set the speech resource key and region values?")
-    finally:
-        dual_audio.stop_recording()
-        if len(dual_audio.frames) > 0 and speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
-              dual_audio.save_to_wav("output.wav")
+    # Configure Azure SpeechRecognizer with PushAudioInputStream
+    audio_config = speechsdk.audio.AudioConfig(stream=audio_stream)
+    recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-        # Current audio file is stuck at 16-bit, 256kbps, which is not enough for myprosody to be used.
-        # So let's upscale the audio 
-        upscale_wav("output.wav", "output_upscaled.wav", target_sample_rate=32000)
-        
-        copy_file('./myprosody/myprosody/dataset/audioFiles/', 'output_upscaled.wav')
-        user_sr = detect_sr('output_upscaled')
+    # Start recognition
+    print("Speak into your microphone...")
+    speech_recognition_result = recognizer.recognize_once_async().get()
 
-        print("User speech rate in syl/sec :: ", user_sr)
+    # Stop audio recording, recognizer will have automatically stopped beforehand.
+    stop_event.set()
+    recording_thread.join()
 
-        print("Finished.")
+    # Handle recognition result
+    if speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        print("You: {}".format(speech_recognition_result.text))
+        print("Recognized: {}".format(speech_recognition_result.duration))
+        speaker_profile = {"Speaker": "This User", "Duration": speech_recognition_result.duration, "Speaking Rate": speech_recognition_result.duration/len(speech_recognition_result.text)}
+        convo_history["User Information"] += [{"Speaker Profile": speaker_profile, "Speaker Input": speech_recognition_result.text}]
+        return speech_recognition_result.text
+    elif speech_recognition_result.reason == speechsdk.ResultReason.NoMatch:
+        print("No speech could be recognized: {}".format(speech_recognition_result.no_match_details))
+    elif speech_recognition_result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = speech_recognition_result.cancellation_details
+        print("Speech Recognition canceled: {}".format(cancellation_details.reason))
+        if cancellation_details.reason == speechsdk.CancellationReason.Error:
+            print("Error details: {}".format(cancellation_details.error_details))
+            print("Did you set the speech resource key and region values?")
+
+    audio_data = b"".join(list(data_queue.queue))
+    audio_np = (np.frombuffer(audio_data, dtype=np.int32))
+
+    if len(audio_np) > 0 and speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        wavfile.write("output.wav", 44100, audio_np)
+
+    # # Current audio file is stuck at 16-bit, 256kbps, which is not enough for myprosody to be used.
+    # # So let's upscale the audio 
+    # upscale_wav("output.wav", "output_upscaled.wav", target_sample_rate=32000)
+    
+    # copy_file('./myprosody/myprosody/dataset/audioFiles/', 'output_upscaled.wav')
+    # user_sr = detect_sr('output_upscaled')
+    
+    # user_sr = detect_sr('output')
+    # print("User speech rate in syl/sec :: ", user_sr)
+
+    print("Finished.")
+    
     return None
 
 # %% [markdown]
