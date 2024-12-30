@@ -213,12 +213,15 @@ def upscale_wav(input_file, output_file, target_sample_rate=48000, target_bit_de
     original_sample_rate = audio.frame_rate
     audio_resampled = audio.set_frame_rate(target_sample_rate)
     
+    
+    if target_bit_depth == 16:
+        audio_resampled = audio_resampled.set_sample_width(2)  # 16-bit = 2 bytes per sample
     # Convert to 24-bit by adjusting the sample width
     if target_bit_depth == 24:
         audio_resampled = audio_resampled.set_sample_width(3)  # 24-bit = 3 bytes per sample
 
         # Convert to 24-bit by adjusting the sample width
-    if target_bit_depth == 32:
+    elif target_bit_depth == 32:
         audio_resampled = audio_resampled.set_sample_width(4)  # 32-bit = 4 bytes per sample
 
     # Export the processed file
@@ -239,7 +242,7 @@ import sys
 def detect_sr(src: str) -> int:
     # Create a StringIO object to capture the output
     p=src
-    c=r"./myprosody/myprosody"
+    c=r"INSERT A PATH" # YOU NEED TO INSERT YOUR LOCAL PATH. Most likely will have to move the string variable to the env.
 
     captured_output = io.StringIO()
     sys.stdout = captured_output  # Redirect sys.stdout to the StringIO object
