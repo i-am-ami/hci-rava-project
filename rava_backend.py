@@ -242,7 +242,10 @@ import sys
 def detect_sr(src: str) -> int:
     # Create a StringIO object to capture the output
     p=src
-    c=r"INSERT A PATH" # YOU NEED TO INSERT YOUR LOCAL PATH. Most likely will have to move the string variable to the env.
+    c=r"INSERT A PATH" # YOU NEED TO INSERT YOUR LOCAL PATH. Most likely will have to move the string variable to the env?
+    # Here is what this line looks like for Abhi:
+    # c=r"/home/jayabbhi/Documents/HCI_grad_project/hci-rava-project/myprosody/myprosody"
+    # direct to the 2nd myprosody dir, but NO / at the end!
 
     captured_output = io.StringIO()
     sys.stdout = captured_output  # Redirect sys.stdout to the StringIO object
