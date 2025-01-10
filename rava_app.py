@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import time
 import ssl
+import pandas as pd
+from datetime import datetime
 from rava_backend import recognize_speech, speak_response
 
 
@@ -61,12 +63,20 @@ def main():
     col1, buttonCol, col3 = st.columns(3)
     if "convo_history" not in st.session_state:
         st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
+
+    if "mis_log" not in st.session_state:
+        st.session_state.mis_log = pd.DataFrame(columns=["Timestamp", "Message"])
+
+    if "m_log_status" not in st.session_state:
+        st.session_state.m_log_status = False
     # convo_history ={"User Information":[], "Agent Information":[]}
     # with instructionCol:
     #     st.write("Click the button below to start talking to RAVA")
     with buttonCol:	
         talk_button = st.button("Talk to RAVA", key="talk", on_click=set_agent_state, args=("waiting",), disabled=st.session_state.agent_status != "inactive")
         end_button = st.button("End Conversation", key="end", on_click=set_agent_state, args=("inactive",), disabled =st.session_state.agent_status == "inactive")
+        m_log_button = st.button("Note a marker for misunderstanding", key="tag", on_click=log_misunderstanding, args=(), disabled =(st.session_state.agent_status == "inactive" or 
+                                                                                                                                        st.session_state.agent_status == "responding"))
         if talk_button:
             rava()
             st.write(st.session_state.convo_history)
@@ -77,9 +87,33 @@ def main():
             st.write(st.session_state.convo_history)
             st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
             st.write("Conversation ended.")
+            csv_file = "log.csv"
+            st.session_state.mis_log.to_csv(csv_file, index=False)
+        if m_log_button:
+            st.write("Noting mark.")
+
 
 def set_agent_state(s):
     st.session_state["agent_status"] = s 
+
+def log_misunderstanding():
+    timestamp = datetime.now()
+    st.session_state.m_log_status = not st.session_state.m_log_status
+
+    # True = Start of the misunderstanding, False = end of the misunderstanding
+    
+    if st.session_state.m_log_status :
+        message = "Start of user misunderstanding"
+        st.session_state.mis_log = pd.concat([st.session_state.mis_log, 
+                                              pd.DataFrame({"Timestamp": [timestamp], 
+                                                            "Message": [message]})], 
+                                                            ignore_index=True)
+    else: 
+        message = "End of user misunderstanding"
+        st.session_state.mis_log = pd.concat([st.session_state.mis_log, 
+                                              pd.DataFrame({"Timestamp": [timestamp], 
+                                                            "Message": [message]})], 
+                                                            ignore_index=True)
 
 def rava():
     
