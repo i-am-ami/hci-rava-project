@@ -3,8 +3,11 @@ import os
 import time
 import ssl
 import pandas as pd
+impot
 from datetime import datetime
 from rava_backend import recognize_speech, speak_response
+
+
 
 
 def allowSelfSignedHttps(allowed):
@@ -64,8 +67,8 @@ def main():
     if "convo_history" not in st.session_state:
         st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
 
-    if "mis_log" not in st.session_state:
-        st.session_state.mis_log = pd.DataFrame(columns=["Timestamp", "Message"])
+    if "event_log" not in st.session_state:
+        st.session_state.event_log = pd.DataFrame(columns=["Timestamp", "Message"])
 
     if "m_log_status" not in st.session_state:
         st.session_state.m_log_status = False
@@ -76,7 +79,7 @@ def main():
         talk_button = st.button("Talk to RAVA", key="talk", on_click=set_agent_state, args=("waiting",), disabled=st.session_state.agent_status != "inactive")
         end_button = st.button("End Conversation", key="end", on_click=set_agent_state, args=("inactive",), disabled =st.session_state.agent_status == "inactive")
         m_log_button = st.button("Note a marker for misunderstanding", key="tag", on_click=log_misunderstanding, args=(), disabled =(st.session_state.agent_status == "inactive" or 
-                                                                                                                                        st.session_state.agent_status == "responding"))
+                                                                                                                                        st.session_state.agent_status == "waiting"))
         if talk_button:
             rava()
             st.write(st.session_state.convo_history)
@@ -88,13 +91,22 @@ def main():
             st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
             st.write("Conversation ended.")
             csv_file = "log.csv"
-            st.session_state.mis_log.to_csv(csv_file, index=False)
+            st.session_state.event_log.to_csv(csv_file, index=False)
+            st.download_button(
+                label="Download Log (CSV)",
+                data=csv_data,
+                file_name="app_log.csv",
+                mime="text/csv"
+            )
         if m_log_button:
             st.write("Noting mark.")
 
-
-def set_agent_state(s):
-    st.session_state["agent_status"] = s 
+def log_stamp(message):
+    timestamp = datetime.now()
+    st.session_state.event_log = pd.concat([st.session_state.event_log, 
+                                              pd.DataFrame({"Timestamp": [timestamp], 
+                                                            "Message": [message]})], 
+                                                            ignore_index=True)
 
 def log_misunderstanding():
     timestamp = datetime.now()
@@ -103,17 +115,12 @@ def log_misunderstanding():
     # True = Start of the misunderstanding, False = end of the misunderstanding
     
     if st.session_state.m_log_status :
-        message = "Start of user misunderstanding"
-        st.session_state.mis_log = pd.concat([st.session_state.mis_log, 
-                                              pd.DataFrame({"Timestamp": [timestamp], 
-                                                            "Message": [message]})], 
-                                                            ignore_index=True)
+        log_stamp("Start of user misunderstanding")
     else: 
-        message = "End of user misunderstanding"
-        st.session_state.mis_log = pd.concat([st.session_state.mis_log, 
-                                              pd.DataFrame({"Timestamp": [timestamp], 
-                                                            "Message": [message]})], 
-                                                            ignore_index=True)
+        log_stamp("End of user misunderstanding")
+
+def set_agent_state(s):
+    st.session_state["agent_status"] = s 
 
 def rava():
     
@@ -123,7 +130,9 @@ def rava():
     non_response_count = 0
     agent_status_message = st.empty()
     while non_response_count < 3:
+         log_stamp("Started recording user")
          user_input = recognize_speech(st.session_state.convo_history)
+         log_stamp("Finished recording user")
          agent_status_message = st.empty()
          if user_input:
              non_response_count = 0
@@ -136,7 +145,9 @@ def rava():
               agent_status_message.text("Agent responding...")
               response = "Voila une reponse"
             #   print(f"Agent: {response}")
+              log_stamp(f'Agent speaking to user: {response} ')
               speak_response(response)
+              log_stamp(f'Agent done speaking to user')
          elif st.session_state.agent_status == "waiting":
               agent_status_message.text("No input detected. Please try again after one second.")
          else:
