@@ -2,8 +2,8 @@ import streamlit as st
 import os
 import time
 import ssl
+import io
 import pandas as pd
-impot
 from datetime import datetime
 from rava_backend import recognize_speech, speak_response
 
@@ -90,8 +90,9 @@ def main():
             st.write(st.session_state.convo_history)
             st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
             st.write("Conversation ended.")
-            csv_file = "log.csv"
+            csv_file = io.StringIO()
             st.session_state.event_log.to_csv(csv_file, index=False)
+            csv_data = csv_file.getvalue()
             st.download_button(
                 label="Download Log (CSV)",
                 data=csv_data,
@@ -132,7 +133,7 @@ def rava():
     while non_response_count < 3:
          log_stamp("Started recording user")
          user_input = recognize_speech(st.session_state.convo_history)
-         log_stamp("Finished recording user")
+         log_stamp(f'Finished recording user, input: {user_input}')
          agent_status_message = st.empty()
          if user_input:
              non_response_count = 0
