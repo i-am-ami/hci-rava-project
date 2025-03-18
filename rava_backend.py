@@ -16,14 +16,14 @@ print(f'SPEECH_KEY: {speech_key}')
 speech_endpoint = os.getenv('SPEECH_ENDPOINT')
 print(f'SPEECH_ENDPOINT: {speech_endpoint}')
 speech_region = os.getenv('SPEECH_REGION')
-print(f'REGION: {speech_region}')
+print(f'SPEECH_REGION: {speech_region}')
 
 gpt_key = os.getenv('GPT_KEY')
 print(f'GPT_KEY: {gpt_key}')
 gpt_endpoint = os.getenv('GPT_ENDPOINT')
 print(f'GPT_ENDPOINT: {gpt_endpoint}')
-gpt_region = os.getenv('OPENAI_REGION')
-print(f'REGION: {gpt_region}')
+gpt_region = os.getenv('GPT_REGION')
+print(f'GPT_REGION: {gpt_region}')
 
 llama_token = os.getenv('LLAMA_TOKEN')
 print(f'LLAMA_TOKEN: {llama_token}')
@@ -51,31 +51,52 @@ class DualAudioStream:
         self.frames = []
         self.push_audio_input_stream = speechsdk.audio.PushAudioInputStream()
 
-    def callback(self, indata, frames, time, status):
+    def azure_callback(self, indata, frames, time, status):
+        """Sounddevice audio callback to capture and push audio data."""
+        if status:
+            print(f"Sounddevice input status: {status}")
+        # Save audio frames for WAV file
+        # self.frames.append(indata.copy())
+        # Write audio to PushAudioInputStream (required by Azure SDK)
+        self.push_audio_input_stream.write(indata.tobytes())
+
+    def mysp_callback(self, indata, frames, time, status):
         """Sounddevice audio callback to capture and push audio data."""
         if status:
             print(f"Sounddevice input status: {status}")
         # Save audio frames for WAV file
         self.frames.append(indata.copy())
         # Write audio to PushAudioInputStream (required by Azure SDK)
-        self.push_audio_input_stream.write(indata.tobytes())
+        # self.push_audio_input_stream.write(indata.tobytes())
 
     def start_recording(self):
         """Start streaming audio from the microphone."""
         print("Recording audio...")
-        self.stream = sd.InputStream(
+        self.mysp_stream = sd.InputStream(
+            samplerate=48000,
+            channels=1,
+            dtype='int32',
+            blocksize=self.chunk * 3, # 16kHz * 3 = 48kHz
+            callback=self.mysp_callback,
+        )
+
+        self.azure_stream = sd.InputStream(
             samplerate=self.rate,
             channels=1,
             dtype='int16',
             blocksize=self.chunk,
-            callback=self.callback,
+            callback=self.azure_callback,
         )
-        self.stream.start()
+
+        self.azure_stream.start()
+        self.mysp_stream.start()
 
     def stop_recording(self):
         """Stop streaming audio and close resources."""
-        self.stream.stop()
-        self.stream.close()
+        self.azure_stream.stop()
+        self.mysp_stream.stop()
+        self.azure_stream.close()
+        self.mysp_stream.close()
         print("Audio streaming stopped.")
 
     def save_to_wav(self, file_name):
@@ -83,8 +104,8 @@ class DualAudioStream:
         audio_data = b"".join(frame.tobytes() for frame in self.frames)
         with wave.open(file_name, "wb") as wf:
             wf.setnchannels(1)  # Mono audio
-            wf.setsampwidth(2)  # 16-bit audio
-            wf.setframerate(self.rate)
+            wf.setsampwidth(4)  # 16-bit audio
+            wf.setframerate(48000)
             wf.writeframes(audio_data)
         print(f"Audio saved to {file_name}.")
 
@@ -135,9 +156,77 @@ def recognize_speech(convo_history):
         dual_audio.stop_recording()
         if len(dual_audio.frames) > 0 and speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
               dual_audio.save_to_wav("output.wav")
-			
+
+        # Current audio file is stuck at 16-bit, 256kbps, which is not enough for myprosody to be used.
+        # So let's upscale the audio
+        # upscale_wav("output.wav", "output_upscaled.wav", target_sample_rate=48000)
+        
+        copy_file('./myprosody/myprosody/dataset/audioFiles/', 'output.wav')
+        # user_sr = detect_sr('output_upscaled')
+
+        user_sr = detect_sr('output')
+
+        print("User speech rate in syl/sec :: ", user_sr)
+
         print("Finished.")
     return None
+
+# %% [markdown]
+# ## Misc. functions
+# 
+# There is some compatibility issues we needed to work around to get Myprosody to work, so here are some methods 
+# to handle the audio files.
+# 
+# %%  
+# Code to copy the files, since myprosody doesn't take file paths.
+import shutil
+import os
+def delete_file(file_path):
+    try:
+        os.remove(file_path)
+        print(f"File {file_path} deleted successfully.")
+    except FileNotFoundError:
+        print(f"File {file_path} not found.")
+    except PermissionError:
+        print(f"Permission denied: {file_path}.")
+    except Exception as e:
+        print(f"Error occurred while deleting file {file_path}: {e}")
+
+def copy_file (dst: str, src: str) :
+    try:
+        shutil.copy(src, dst)  # Preserves metadata like timestamps
+        print(f"File copied successfully from {src} to {dst}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# %%  
+# Code to upscale Microsoft's 16-bit 256kbps audio quality to 24-bit, 32khz audio to meet myprosody's requirements. 
+# Not really being used atm, since even after upscaling myprosody won't accept it.     
+
+from pydub import AudioSegment
+
+def upscale_wav(input_file, output_file, target_sample_rate=48000, target_bit_depth=32):
+    # Load the .wav file
+    audio = AudioSegment.from_wav(input_file)
+    
+    # Resample to target sample rate (32 kHz)
+    original_sample_rate = audio.frame_rate
+    audio_resampled = audio.set_frame_rate(target_sample_rate)
+    
+    
+    if target_bit_depth == 16:
+        audio_resampled = audio_resampled.set_sample_width(2)  # 16-bit = 2 bytes per sample
+    # Convert to 24-bit by adjusting the sample width
+    if target_bit_depth == 24:
+        audio_resampled = audio_resampled.set_sample_width(3)  # 24-bit = 3 bytes per sample
+
+        # Convert to 24-bit by adjusting the sample width
+    elif target_bit_depth == 32:
+        audio_resampled = audio_resampled.set_sample_width(4)  # 32-bit = 4 bytes per sample
+
+    # Export the processed file
+    audio_resampled.export(output_file, format="wav")
+
 
 # %% [markdown]
 # ## MyProsody Speech Rate Detection
@@ -153,7 +242,10 @@ import sys
 def detect_sr(src: str) -> int:
     # Create a StringIO object to capture the output
     p=src
-    c=r"./myprosody/myprosody"
+    c=r"INSERT A PATH" # YOU NEED TO INSERT YOUR LOCAL PATH. Most likely will have to move the string variable to the env?
+    # Here is what this line looks like for Abhi:
+    # c=r"/home/jayabbhi/Documents/HCI_grad_project/hci-rava-project/myprosody/myprosody"
+    # direct to the 2nd myprosody dir, but NO / at the end!
 
     captured_output = io.StringIO()
     sys.stdout = captured_output  # Redirect sys.stdout to the StringIO object
