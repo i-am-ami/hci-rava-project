@@ -1,11 +1,13 @@
 import streamlit as st
+from audiorecorder import audiorecorder
 import os
 import time
 import ssl
 import io
 import pandas as pd
 from datetime import datetime
-from rava_backend import recognize_speech, speak_response
+from pathlib import Path
+from rava_backend import recognize_speech, generate_response, speak_response
 
 
 
@@ -30,10 +32,8 @@ def main():
             margin: 0 auto;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-			border-radius: 50%;
             width: 160px;
-            height: 160px;
+            height: 80px;
             font-size: 20px;
             background-color:;
         }
@@ -51,19 +51,9 @@ def main():
 
         </style>
     """, unsafe_allow_html=True)
+    
+    col1, recordCol, buttonCol, col3 = st.columns(4)
 
-    # st.markdown("""
-    #     <style>
-    #     div.stButton>button:second-child {
-    #         display: block;
-    #         margin-top: 10px;
-    #         justify-content: center;
-    #         align-items: center;
-    #         font-size: 12px;
-    #     }
-    #     </style>
-    # """, unsafe_allow_html=True)
-    col1, buttonCol, col3 = st.columns(3)
     if "convo_history" not in st.session_state:
         st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
 
@@ -72,20 +62,55 @@ def main():
 
     if "m_log_status" not in st.session_state:
         st.session_state.m_log_status = False
-    # convo_history ={"User Information":[], "Agent Information":[]}
-    # with instructionCol:
-    #     st.write("Click the button below to start talking to RAVA")
+
+    if "user_recording_status" not in st.session_state:
+        st.session_state.m_log_status = False
+
+    agent_status_message = st.empty()
+
+    with recordCol:
+        audio = audiorecorder("Click to record", "Click to stop recording", "Click to pause",
+            custom_style={
+                "display": "block",
+                "justifyContent": "center",
+                "alignItems": "center",
+                "margin": "0 auto",
+                "width": "160px",
+                "height": "80px",
+                "fontSize": "20px",
+                "color": "white",
+                "border": "none",
+                "borderRadius": "7px"
+            },
+            start_style={
+                "backgroundColor": "green",
+            },
+            pause_style={
+                "backgroundColor": "orange",
+            },
+            stop_style={
+                "backgroundColor": "red",
+                "margin-top": "10px",
+            },
+            key="audio"
+        )
+
+
     with buttonCol:	
-        talk_button = st.button("Talk to RAVA", key="talk", on_click=set_agent_state, args=("waiting",), disabled=st.session_state.agent_status != "inactive")
+        send_button = st.button("Send to RAVA", key="send", on_click=set_agent_state, args=("waiting",), disabled=(st.session_state.agent_status != "inactive"))
         end_button = st.button("End Conversation", key="end", on_click=set_agent_state, args=("inactive",), disabled =st.session_state.agent_status == "inactive")
         m_log_button = st.button("Note a marker for misunderstanding", key="tag", on_click=log_misunderstanding, args=(), disabled =(st.session_state.agent_status == "inactive" or 
                                                                                                                                         st.session_state.agent_status == "waiting"))
-        if talk_button:
-            rava()
-            st.write(st.session_state.convo_history)
-            st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
-            time.sleep(5)
-            st.experimental_rerun() 
+        if send_button:
+            if len(audio) > 0:
+                # To play audio in frontend:
+                audio.export(out_f = "user_input.wav", format = "wav")
+                rava()
+                st.write(st.session_state.convo_history)
+                st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
+            else :
+                agent_status_message.text("No recording file detected. Try recording again.")
+        
         if end_button:
             st.write(st.session_state.convo_history)
             st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
@@ -102,6 +127,10 @@ def main():
         if m_log_button:
             st.write("Noting mark.")
 
+def user_recording_present():
+    my_file = Path("./user_input.wav")
+    return my_file.is_file()
+
 def log_stamp(message):
     timestamp = datetime.now()
     st.session_state.event_log = pd.concat([st.session_state.event_log, 
@@ -114,7 +143,6 @@ def log_misunderstanding():
     st.session_state.m_log_status = not st.session_state.m_log_status
 
     # True = Start of the misunderstanding, False = end of the misunderstanding
-    
     if st.session_state.m_log_status :
         log_stamp("Start of user misunderstanding")
     else: 
@@ -127,39 +155,34 @@ def rava():
     
     if "agent_status" not in st.session_state:
         st.session_state.agent_status = "waiting"
+
     """Main voice agent loop."""
-    non_response_count = 0
     agent_status_message = st.empty()
-    while non_response_count < 3:
-         log_stamp("Started recording user")
-         user_input = recognize_speech(st.session_state.convo_history)
-         log_stamp(f'Finished recording user, input: {user_input}')
-         agent_status_message = st.empty()
-         if user_input:
-             non_response_count = 0
-             st.session_state.agent_status = "responding"
-         else:
-             st.session_state.agent_status = "waiting"
-             non_response_count += 1
-             
-         if st.session_state.agent_status == "responding":
-              agent_status_message.text("Agent responding...")
-              response = "Voila une reponse"
-            #   print(f"Agent: {response}")
-              log_stamp(f'Agent speaking to user: {response} ')
-              speak_response(response)
-              log_stamp(f'Agent done speaking to user')
-         elif st.session_state.agent_status == "waiting":
-              agent_status_message.text("No input detected. Please try again after one second.")
-         else:
-              pass;
+
+    log_stamp("Started recording user")
+    user_sr, user_input_text = recognize_speech(st.session_state.convo_history)
+    log_stamp(f'Finished recording user, speech rate: {user_sr} (syllables/sec), input: {user_input_text}')
+    agent_status_message = st.empty()
+
+    if user_input_text:
+        st.session_state.agent_status = "responding"
+    else:
+        st.session_state.agent_status = "waiting"
+        
+    if st.session_state.agent_status == "responding":
+        agent_status_message.text("Agent responding...")
+        # response = generate_response(user_input_text) still working on this
+        response = "Voila une reponse"
+        log_stamp(f'Agent speaking to user: {response} ')
+        speak_response(response)
+        log_stamp(f'Agent done speaking to user')
+    elif st.session_state.agent_status == "waiting":
+        agent_status_message.text("No input detected. Try recording again.")
+    else:
+        pass;
     set_agent_state("inactive")
     # st.write(st.session_state.convo_history)
-    agent_status_message.text("Agent timed out after 3 undetected user input. Resetting agent...")
     # return st.session_state.convo_history
-
-def store_convo():
-    pass
 
 if __name__ == "__main__":
     main()

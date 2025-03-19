@@ -3,7 +3,7 @@
 /lib/
 /share/
 /myprosody/myprosody/dataset/audioFiles/
-/myprosody
+/myprosody/
 output*
 .env
 rava.ipynb
