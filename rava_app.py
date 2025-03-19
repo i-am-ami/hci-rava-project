@@ -171,8 +171,8 @@ def rava():
         
     if st.session_state.agent_status == "responding":
         agent_status_message.text("Agent responding...")
-        # response = generate_response(user_input_text) still working on this
-        response = "Voila une reponse"
+        response = generate_response(user_input_text) # still working on this
+        # response = "Voila une reponse"
         log_stamp(f'Agent speaking to user: {response} ')
         speak_response(response)
         log_stamp(f'Agent done speaking to user')

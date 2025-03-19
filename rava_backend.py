@@ -5,6 +5,8 @@
 # %%
 from dotenv import load_dotenv
 import os
+from openai import AzureOpenAI
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 # Load .env file
 load_dotenv()
@@ -24,11 +26,17 @@ gpt_endpoint = os.getenv('GPT_ENDPOINT')
 print(f'GPT_ENDPOINT: {gpt_endpoint}')
 gpt_region = os.getenv('GPT_REGION')
 print(f'GPT_REGION: {gpt_region}')
-from openai import AzureOpenAI
-openai_client = AzureOpenAI(
-    api_key=gpt_key,  
-    api_version="2024-07-01-preview",
-    azure_endpoint=gpt_endpoint
+
+endpoint = "https://rava-gpt-access.openai.azure.com/openai/deployments/gpt-35-turbo"
+model_name = "gpt-35-turbo"
+deployment = "gpt-35-turbo"
+token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
+api_version = "2024-12-01-preview"
+
+client = AzureOpenAI(
+    api_version=api_version,
+    azure_endpoint=endpoint,
+    azure_ad_token_provider=token_provider,
 )
 
 llama_token = os.getenv('LLAMA_TOKEN')
@@ -173,14 +181,14 @@ def detect_sr(src: str) -> int:
 def generate_response(prompt):
     
     """Generate a response using Azure OpenAI Service."""
-    response = openai_client.chat.completions.create(
-        deployment_id="gpt-35-turbo",
+    response = client.chat.completions.create(
+        model=deployment,
         messages=[
             {"role": "system", "content": "You are a helpful AI assistant. You will respond in French"},
             {"role": "user", "content": prompt},
         ],
     )
-    return response.choices[0].message["content"]
+    return response.choices[0].message.content
 
 # %%
 # TODO: implement the ollama version of the above code, to make testing the program easier without using too many credits
