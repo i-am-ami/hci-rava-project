@@ -7,7 +7,7 @@ import io
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from rava_backend import recognize_speech, generate_response, speak_response
+from rava_backend import recognize_speech, generate_response, speak_response, calc_new_sr_p
 
 
 
@@ -18,8 +18,20 @@ def allowSelfSignedHttps(allowed):
         ssl._create_default_https_context = ssl._create_unverified_context
 
 def main():
+    # Agent Speech Rate Percentage. Initialized as zero to serve a s a flag that usre has not spoken yet
+    # until they do, have a message to tell the user to speak at a normal and rate for their first time
+    # Tell them to project their voice as if they are presenting something, and keeping a good (1ft) distance from
+    #  their mics, possibly?
+    if "agent_sr_p" not in st.session_state:
+        st.session_state.agent_sr_p = 0
+        st.session_state.agent_sr = 0
+    
     st.set_page_config(page_title="Speech To Text", layout="wide")
+
     st.title('Rava App')
+    if st.session_state.agent_sr_p == 0:
+        st.subheader('Speak as if you are presenting and project your voice, so the program can understand you.')
+        
     allowSelfSignedHttps(True)
     if "agent_status" not in st.session_state:
         st.session_state.agent_status = "inactive"
@@ -69,6 +81,8 @@ def main():
     if "user_recording_status" not in st.session_state:
         st.session_state.m_log_status = False
 
+
+
     agent_status_message = st.empty()
 
     with recordCol:
@@ -106,8 +120,7 @@ def main():
                                                                                                                                         st.session_state.agent_status == "waiting"))
         if send_button:
             if len(audio) > 0:
-                # To play audio in frontend:
-                audio.export(out_f = "user_input.wav", format = "wav")
+                audio.export(out_f = "user_input.wav", format = "wav")                    
                 rava()
                 st.write(st.session_state.agent_history)
                 st.session_state.agent_history = {"User Information":[], "Agent Information":[]}
@@ -176,8 +189,16 @@ def rava():
         agent_status_message.text("Agent responding...")
         response = generate_response(user_input_text, st.session_state.messages) # still working on this
         # response = "Voila une reponse"
-        log_stamp(f'Agent speaking to user: {response} ')
-        speak_response(response)
+        
+
+        if st.session_state.agent_sr_p == 0:
+            st.session_state.agent_sr, st.session_state.agent_sr_p = calc_new_sr_p(5, 8, user_sr)
+        else:
+            st.session_state.agent_sr, st.session_state.agent_sr_p = calc_new_sr_p(st.session_state.agent_sr_p,
+                                                                                   st.session_state.agent_sr, 
+                                                                                   user_sr)
+        log_stamp(f'Agent speaking to user: {response}, with speech rate of {st.session_state.agent_sr}')
+        speak_response(response, st.session_state.agent_sr_p)
         log_stamp(f'Agent done speaking to user')
         agent_status_message.text("")
     elif st.session_state.agent_status == "waiting":

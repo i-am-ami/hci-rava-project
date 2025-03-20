@@ -82,17 +82,13 @@ def recognize_speech(agent_history):
             print("Error details: {}".format(cancellation_details.error_details))
             print("Did you set the speech resource key and region values?")
     
-    copy_file('./myprosody/myprosody/dataset/audioFiles/', 'user_input.wav')
 
-    user_sr = detect_sr('user_input')
+    user_sr = detect_sr()
 
     print("User speech rate in syl/sec :: ", user_sr)
     print("Finished.")
     # TODO: We clean up the audio files, but should we consider archiving them, and make them part of the download the user
     # give us?
-    delete_file("./myprosody/myprosody/dataset/audioFiles/user_input.wav")
-    delete_file("./myprosody/myprosody/dataset/audioFiles/user_input.TextGrid")
-    delete_file("./user_input.wav")
     delete_file("./user_downsampled.wav")
     return (user_sr, user_input_text)
 
@@ -136,9 +132,12 @@ import myprosody as mysp
 import io
 import sys
 
-def detect_sr(src: str) -> int:
+def detect_sr() -> int:
     # Create a StringIO object to capture the output
-    p=src
+    copy_file('./myprosody/myprosody/dataset/audioFiles/', 'user_input.wav')
+
+
+    p='user_input'
     # c=r"INSERT A PATH" # YOU NEED TO INSERT YOUR LOCAL PATH. Most likely will have to move the string variable to the env?
     # Here is what this line looks like for Abhi:
     c=r"/home/jayabbhi/Documents/HCI_grad_project/sts/hci-rava-project/myprosody/myprosody"
@@ -161,6 +160,10 @@ def detect_sr(src: str) -> int:
         final_syl_sec = int(output.split(" ")[1].strip())
     except Exception as e:
         print(output)
+    finally:
+        delete_file("./myprosody/myprosody/dataset/audioFiles/user_input.wav")
+        delete_file("./myprosody/myprosody/dataset/audioFiles/user_input.TextGrid")
+        delete_file("./user_input.wav")
     
     return final_syl_sec
 
@@ -187,19 +190,20 @@ def generate_response(prompt, messages):
     return response.choices[0].message.content
 
 # %%
-min_sr_p = 1
-max_sr_p = 15
-def_sr_p = 5
-def_myp_sr = 8
 
 
 '''We are going to work in percentages of the final SpeechSynthesizer'''
-def calc_new_sr(old_sr_p, user_sr):
-    user_sr_p = (user_sr / def_myp_sr) * def_sr_p
-    new_sr_p = int((old_sr_p + user_sr_p) / 2.0)
-    new_sr_p = max(1, new_sr_p)
-    new_sr_p = min(new_sr_p, 15)
-    return new_sr_p
+def calc_new_sr_p(agent_sr_p, agent_sr, new_sr):
+    # TODO: need to setup a flag in the app, to determine the user's default speech rate.
+    user_sr_p = (new_sr / agent_sr) * agent_sr_p
+    new_agent_sr_p = int((agent_sr_p + user_sr_p) / 2.0)
+
+    new_agent_sr_p = max(1, new_agent_sr_p)
+    new_agent_sr_p = min(new_agent_sr_p, 15)
+
+    # now that we have the new sr p for the agent, apply the same delta to the agent_sr
+    new_agent_sr = int((new_agent_sr_p / agent_sr_p) * agent_sr)
+    return new_agent_sr, new_agent_sr_p
 
 
 
@@ -208,15 +212,14 @@ def calc_new_sr(old_sr_p, user_sr):
 # TODO: implement the ollama version of the above code, to make testing the program easier without using too many credits
 
 # %%
-def speak_response(response):
+def speak_response(response, sr_p):
 	"""Convert text to speech using Azure Speech SDK."""
 	speech_config.speech_synthesis_language="fr-FR"
 	synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
     # Define SSML with Speaking Rate
     # TODO: Need to set a bounds on the speech rate. 5% matches pretty nicely to 8 syllables per second 
     # like Google's own TTS service. 20% is a little two fast, so let's cap it at 15%
-	rate = '5%' 
-	# speech_config.voice_name = "fr-FR-Julie-Apollo"
+	rate = f'{sr_p}%' 
 	speech_config.speech_synthesis_voice_name = "fr-FR-VivienneMultilingualNeural"
 	ssml_string = f"""<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" 
     xmlns:mstts="http://www.w3.org/2001/mstts" 
