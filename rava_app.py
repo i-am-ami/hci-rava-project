@@ -54,8 +54,11 @@ def main():
     
     col1, recordCol, buttonCol, col3 = st.columns(4)
 
-    if "convo_history" not in st.session_state:
-        st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
+    if "agent_history" not in st.session_state:
+        st.session_state.agent_history = {"User Information":[], "Agent Information":[]}
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = [{"role": "system", "content": "You are a helpful assistant."}]
 
     if "event_log" not in st.session_state:
         st.session_state.event_log = pd.DataFrame(columns=["Timestamp", "Message"])
@@ -106,14 +109,14 @@ def main():
                 # To play audio in frontend:
                 audio.export(out_f = "user_input.wav", format = "wav")
                 rava()
-                st.write(st.session_state.convo_history)
-                st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
+                st.write(st.session_state.agent_history)
+                st.session_state.agent_history = {"User Information":[], "Agent Information":[]}
             else :
                 agent_status_message.text("No recording file detected. Try recording again.")
         
         if end_button:
-            st.write(st.session_state.convo_history)
-            st.session_state.convo_history = {"User Information":[], "Agent Information":[]}
+            st.write(st.session_state.agent_history)
+            st.session_state.agent_history = {"User Information":[], "Agent Information":[]}
             st.write("Conversation ended.")
             csv_file = io.StringIO()
             st.session_state.event_log.to_csv(csv_file, index=False)
@@ -160,7 +163,7 @@ def rava():
     agent_status_message = st.empty()
 
     log_stamp("Started recording user")
-    user_sr, user_input_text = recognize_speech(st.session_state.convo_history)
+    user_sr, user_input_text = recognize_speech(st.session_state.agent_history)
     log_stamp(f'Finished recording user, speech rate: {user_sr} (syllables/sec), input: {user_input_text}')
     agent_status_message = st.empty()
 
@@ -171,18 +174,19 @@ def rava():
         
     if st.session_state.agent_status == "responding":
         agent_status_message.text("Agent responding...")
-        response = generate_response(user_input_text) # still working on this
+        response = generate_response(user_input_text, st.session_state.messages) # still working on this
         # response = "Voila une reponse"
         log_stamp(f'Agent speaking to user: {response} ')
         speak_response(response)
         log_stamp(f'Agent done speaking to user')
+        agent_status_message.text("")
     elif st.session_state.agent_status == "waiting":
         agent_status_message.text("No input detected. Try recording again.")
     else:
         pass;
     set_agent_state("inactive")
-    # st.write(st.session_state.convo_history)
-    # return st.session_state.convo_history
+    # st.write(st.session_state.agent_history)
+    # return st.session_state.agent_history
 
 if __name__ == "__main__":
     main()

@@ -6,7 +6,6 @@
 from dotenv import load_dotenv
 import os
 from openai import AzureOpenAI
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 # Load .env file
 load_dotenv()
@@ -20,24 +19,14 @@ print(f'SPEECH_ENDPOINT: {speech_endpoint}')
 speech_region = os.getenv('SPEECH_REGION')
 print(f'SPEECH_REGION: {speech_region}')
 
-gpt_key = os.getenv('GPT_KEY')
-print(f'GPT_KEY: {gpt_key}')
-gpt_endpoint = os.getenv('GPT_ENDPOINT')
-print(f'GPT_ENDPOINT: {gpt_endpoint}')
-gpt_region = os.getenv('GPT_REGION')
-print(f'GPT_REGION: {gpt_region}')
-
-endpoint = "https://rava-gpt-access.openai.azure.com/openai/deployments/gpt-35-turbo"
 model_name = "gpt-35-turbo"
 deployment = "gpt-35-turbo"
-token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
-api_version = "2024-12-01-preview"
+api_version = "2025-01-01-preview"
 
 client = AzureOpenAI(
     api_version=api_version,
-    azure_endpoint=endpoint,
-    azure_ad_token_provider=token_provider,
 )
+
 
 llama_token = os.getenv('LLAMA_TOKEN')
 print(f'LLAMA_TOKEN: {llama_token}')
@@ -56,7 +45,7 @@ speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_re
 # %%
 from pydub import AudioSegment
 
-def recognize_speech(convo_history):
+def recognize_speech(agent_history):
     user_input_text = "";
 
     audio = AudioSegment.from_wav("user_input.wav")
@@ -69,11 +58,11 @@ def recognize_speech(convo_history):
     audio = audio.set_frame_rate(desired_sample_rate).set_sample_width(desired_bit_depth // 8)
 
     # Export the converted audio
-    audio.export("user_downsample.wav", format="wav")
+    audio.export("user_downsampled.wav", format="wav")
     # This example requires environment variables named "SPEECH_KEY" and "SPEECH_REGION"
     
     speech_config.speech_recognition_language="fr-FR"
-    audio_config = speechsdk.AudioConfig(filename="user_downsample.wav")
+    audio_config = speechsdk.AudioConfig(filename="user_downsampled.wav")
     recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
     # Start recognition
@@ -84,7 +73,7 @@ def recognize_speech(convo_history):
         print("You: {}".format(speech_recognition_result.text))
         print("Recognized: {}".format(speech_recognition_result.duration))
         speaker_profile = {"Speaker": "This User", "Duration": speech_recognition_result.duration, "Speaking Rate": speech_recognition_result.duration/len(speech_recognition_result.text)}
-        convo_history["User Information"] += [{"Speaker Profile": speaker_profile, "Speaker Input": speech_recognition_result.text}]
+        agent_history["User Information"] += [{"Speaker Profile": speaker_profile, "Speaker Input": speech_recognition_result.text}]
         user_input_text = speech_recognition_result.text
     elif speech_recognition_result.reason == speechsdk.ResultReason.NoMatch:
         print("No speech could be recognized: {}".format(speech_recognition_result.no_match_details))
@@ -101,7 +90,12 @@ def recognize_speech(convo_history):
 
     print("User speech rate in syl/sec :: ", user_sr)
     print("Finished.")
-    # TODO: Clean up the audio files.
+    # TODO: We clean up the audio files, but should we consider archiving them, and make them part of the download the user
+    # give us?
+    delete_file("./myprosody/myprosody/dataset/audioFiles/user_input.wav")
+    delete_file("./myprosody/myprosody/dataset/audioFiles/user_input.TextGrid")
+    delete_file("./user_input.wav")
+    delete_file("./user_downsampled.wav")
     return (user_sr, user_input_text)
 
 # %% [markdown]
@@ -178,16 +172,20 @@ def detect_sr(src: str) -> int:
 # %% [markdown]
 # ### OpenAI GPT
 
-def generate_response(prompt):
-    
+def generate_response(prompt, messages):
+    messages.append({"role": "user", "content": prompt})
+
     """Generate a response using Azure OpenAI Service."""
     response = client.chat.completions.create(
-        model=deployment,
-        messages=[
-            {"role": "system", "content": "You are a helpful AI assistant. You will respond in French"},
-            {"role": "user", "content": prompt},
-        ],
+        messages=messages,
+        max_tokens=600,
+        temperature=1.0,
+        top_p=1.0,
+        model=deployment
     )
+
+    messages.append({"role": "system", "content": response.choices[0].message.content})
+     
     return response.choices[0].message.content
 
 # %%
