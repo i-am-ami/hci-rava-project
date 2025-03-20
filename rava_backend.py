@@ -187,6 +187,24 @@ def generate_response(prompt, messages):
     return response.choices[0].message.content
 
 # %%
+min_sr_p = 1
+max_sr_p = 15
+def_sr_p = 5
+def_myp_sr = 8
+
+
+'''We are going to work in percentages of the final SpeechSynthesizer'''
+def calc_new_sr(old_sr_p, user_sr):
+    user_sr_p = (user_sr / def_myp_sr) * def_sr_p
+    new_sr_p = int((old_sr_p + user_sr_p) / 2.0)
+    new_sr_p = max(1, new_sr_p)
+    new_sr_p = min(new_sr_p, 15)
+    return new_sr_p
+
+
+
+
+# %%
 # TODO: implement the ollama version of the above code, to make testing the program easier without using too many credits
 
 # %%
