@@ -14,8 +14,6 @@ load_dotenv()
 # Access environment variables
 speech_key = os.getenv('SPEECH_KEY')
 print(f'SPEECH_KEY: {speech_key}')
-speech_endpoint = os.getenv('SPEECH_ENDPOINT')
-print(f'SPEECH_ENDPOINT: {speech_endpoint}')
 speech_region = os.getenv('SPEECH_REGION')
 print(f'SPEECH_REGION: {speech_region}')
 
@@ -197,7 +195,9 @@ def speak_response(response):
 	speech_config.speech_synthesis_language="fr-FR"
 	synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
     # Define SSML with Speaking Rate
-	rate = '20%'
+    # TODO: Need to set a bounds on the speech rate. 5% matches pretty nicely to 8 syllables per second 
+    # like Google's own TTS service. 20% is a little two fast, so let's cap it at 15%
+	rate = '5%' 
 	# speech_config.voice_name = "fr-FR-Julie-Apollo"
 	speech_config.speech_synthesis_voice_name = "fr-FR-VivienneMultilingualNeural"
 	ssml_string = f"""<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" 
