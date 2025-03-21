@@ -28,7 +28,7 @@ client = AzureOpenAI(
 
 llama_token = os.getenv('LLAMA_TOKEN')
 print(f'LLAMA_TOKEN: {llama_token}')
-	
+  
 
 # %% [markdown]
 # ## Speech-To-Text Azure
@@ -209,28 +209,27 @@ def calc_new_sr_p(agent_sr_p, agent_sr, new_sr):
 
 # %%
 def speak_response(response, sr_p):
-	"""Convert text to speech using Azure Speech SDK."""
-	speech_config.speech_synthesis_language="fr-FR"
-	synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
+  """Convert text to speech using Azure Speech SDK."""
+  speech_config.speech_synthesis_language="fr-FR"
+  synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
     # Define SSML with Speaking Rate
     # TODO: Need to set a bounds on the speech rate. 5% matches pretty nicely to 8 syllables per second 
     # like Google's own TTS service. 20% is a little two fast, so let's cap it at 15%
-	rate = f'{sr_p}%'
-	print(f'Synthesizer Rate: {rate}')
-	speech_config.speech_synthesis_voice_name = "fr-FR-VivienneMultilingualNeural"
-	ssml_string = f"""<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" 
+  rate = f'{sr_p}%'
+  print(f'Synthesizer Rate: {rate}')
+  speech_config.speech_synthesis_voice_name = "fr-FR-VivienneMultilingualNeural"
+  ssml_string = f"""<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" 
     xmlns:mstts="http://www.w3.org/2001/mstts" 
-    	xml:lang="en-US">
-    		<voice name="fr-FR-VivienneMultilingualNeural">
+      xml:lang="en-US">
+        <voice name="fr-FR-VivienneMultilingualNeural">
         <prosody rate="{rate}">{response}.</prosody>
     </voice>
     </speak>"""
-	result = synthesizer.speak_ssml_async(ssml_string).get()
-	if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-		print("Speech synthesized successfully.")
-		return result.audio_data
-	elif result.reason == speechsdk.ResultReason.Canceled:
-		cancellation_details = result.cancellation_details
-		print(f"Speech synthesis canceled: {cancellation_details.reason}")
-		if cancellation_details.reason == speechsdk.CancellationReason.Error:
-			print(f"Error details: {cancellation_details.error_details}")
+  result = synthesizer.speak_ssml_async(ssml_string).get()
+  if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+    print("Speech synthesized successfully.")
+  elif result.reason == speechsdk.ResultReason.Canceled:
+    cancellation_details = result.cancellation_details
+    print(f"Speech synthesis canceled: {cancellation_details.reason}")
+    if cancellation_details.reason == speechsdk.CancellationReason.Error:
+      print(f"Error details: {cancellation_details.error_details}")
