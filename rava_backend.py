@@ -90,6 +90,7 @@ def recognize_speech(agent_history):
   # TODO: We clean up the audio files, but should we consider archiving them, and make them part of the download the user
   # give us?
   delete_file("./user_downsampled.wav")
+  delete_file("./user_input.wav")
   return (user_sr, user_input_text)
 
 # %% [markdown]
@@ -163,7 +164,6 @@ def detect_sr() -> int:
   finally:
     delete_file("./myprosody/myprosody/dataset/audioFiles/user_input.wav")
     delete_file("./myprosody/myprosody/dataset/audioFiles/user_input.TextGrid")
-    delete_file("./user_input.wav")
   
   return final_syl_sec
 

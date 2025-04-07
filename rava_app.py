@@ -1,7 +1,6 @@
 import streamlit as st
 from audiorecorder import audiorecorder
 import os
-import time
 import ssl
 import io
 import pandas as pd
@@ -110,9 +109,10 @@ def main():
     )
 
 
+
   with buttonCol:
     handle_speaking_end()
-    send_button = st.button("Send to RAVA", key="send", on_click=set_agent_state, args=("waiting",), disabled=(st.session_state.agent_status != "inactive"))
+    send_button = st.button("Send to RAVA", key="send", on_click=set_agent_state, args=("waiting",), disabled=False)
     end_button = st.button("End Conversation", key="end", on_click=set_agent_state, args=("inactive",), disabled = st.session_state.agent_status == "inactive")
     m_log_button = st.button("Log a misunderstanding", key="tag", on_click=log_misunderstanding, args=(), disabled = st.session_state.agent_status == "inactive")
     if send_button:
@@ -163,6 +163,7 @@ def log_stamp(misunderstanding, message):
     st.session_state.event_log = pd.concat([st.session_state.event_log, log_data], ignore_index=True)
 
 def log_misunderstanding():
+  handle_speaking_end()
   timestamp = datetime.now()
   st.session_state.m_log_status = not st.session_state.m_log_status
 
@@ -189,6 +190,8 @@ def handle_speaking_end():
     except Exception as e:
       print(f"Error processing speech state file: {e}")
 
+def set_agent_state(s):
+  st.session_state["agent_status"] = s 
 
 def set_agent_state(s):
   st.session_state["agent_status"] = s 
